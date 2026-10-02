@@ -9,10 +9,12 @@ from strawberry.types import Info
 
 from app import api_types as t
 from app import queries
+from app.carrier import state as carrier_state
 from app.config import demo_mode
 from app.fixtures import UnknownFixtureError
 from app.ingest import FixtureMismatchError, deliver_fixture
 from app.seed import seed
+from app.transmit import SendRefusedError, request_send
 
 
 def _engine(info: Info) -> Engine:
@@ -53,10 +55,24 @@ class Mutation:
         )
 
     @strawberry.mutation
+    async def send_to_carrier(self, info: Info, submission_id: int) -> t.SendResult:
+        try:
+            result = await run_in_threadpool(request_send, _engine(info), submission_id)
+        except SendRefusedError as exc:
+            raise ValueError(str(exc)) from exc
+        return t.SendResult(
+            transmission_id=result.transmission_id,
+            state=result.state,
+            queued=result.queued,
+            replay=result.replay,
+        )
+
+    @strawberry.mutation
     async def reset_demo(self, info: Info) -> t.ResetResult:
         if not demo_mode():
             raise ValueError("resetDemo is only available when DEMO_MODE=1")
         ids = await run_in_threadpool(seed, _engine(info))
+        carrier_state.reset()
         return t.ResetResult(submission_ids=sorted(ids.values()))
 
 

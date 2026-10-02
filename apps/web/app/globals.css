@@ -117,3 +117,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 .dev { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 8px; }
 .dev summary { cursor: pointer; font-weight: 600; }
 .dev pre { background: #0f172a; color: #e2e8f0; padding: 8px; border-radius: 8px; overflow: auto; max-height: 200px; font-size: 12px; }
+
+.total-note { margin: 4px 0 0; color: var(--muted); font-weight: 600; }
+.carrier { border-top: 1px solid var(--line); margin-top: 12px; }
+.carrier p { margin: 4px 0; }

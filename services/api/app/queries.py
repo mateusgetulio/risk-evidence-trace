@@ -101,6 +101,18 @@ def get_submission(engine: Engine, submission_id: int) -> t.Submission | None:
             {"id": submission_id},
         ).all()
         pending = jobs.pending_count(conn, submission_id)
+        sent = conn.execute(
+            text(
+                "SELECT t.id, t.state, t.attempts, t.idempotency_key, t.last_error, "
+                "t.decision_run_id, c.acknowledgement->>'acknowledgement_id' AS ack "
+                "FROM transmissions t JOIN decision_runs r ON r.id = t.decision_run_id "
+                "LEFT JOIN carrier_receipts c ON c.idempotency_key = t.idempotency_key "
+                "WHERE r.submission_id = :id AND t.decision_run_id = ("
+                "  SELECT max(id) FROM decision_runs WHERE submission_id = :id) "
+                "ORDER BY t.id DESC LIMIT 1"
+            ),
+            {"id": submission_id},
+        ).first()
     observations = [
         t.Observation(
             id=int(r.id),
@@ -126,6 +138,17 @@ def get_submission(engine: Engine, submission_id: int) -> t.Submission | None:
         pending_jobs=pending,
         observations=observations,
         decision=decision,
+        transmission=None
+        if sent is None
+        else t.Transmission(
+            id=int(sent.id),
+            state=sent.state,
+            attempts=int(sent.attempts),
+            idempotency_key=sent.idempotency_key,
+            last_error=sent.last_error,
+            decision_run_id=int(sent.decision_run_id),
+            acknowledgement_id=sent.ack,
+        ),
     )
 
 
@@ -210,11 +233,26 @@ def _message(kind: str, detail: dict[str, Any]) -> str:
     if kind == "transmission_created":
         return "Quote queued for the carrier partner."
     if kind == "transmission_attempt_failed":
-        return f"Carrier partner attempt failed: {detail.get('error', 'unknown error')}."
+        return (
+            f"Attempt {detail['attempt']} to reach the carrier partner failed: {detail['error']}."
+        )
     if kind == "transmission_delivered":
-        return "Carrier partner acknowledged the quote."
+        ack = detail["acknowledgement_id"]
+        if detail["carrier_already_had_it"]:
+            return (
+                f"Retry succeeded. The carrier had already recorded the first attempt and "
+                f"returned its original acknowledgement ({ack})."
+            )
+        return f"Carrier partner acknowledged the quote ({ack}) on attempt {detail['attempts']}."
     if kind == "transmission_replayed":
-        return "Send again returned the carrier's original acknowledgement. Nothing was sent twice."
+        return (
+            "Send again returned the carrier's original acknowledgement "
+            f"({detail['acknowledgement_id']}). Nothing was sent twice."
+        )
+    if kind == "transmission_failed":
+        return (
+            f"The carrier partner did not accept the quote: {detail['error']}. Send again to retry."
+        )
     return kind.replace("_", " ").capitalize() + "."
 
 

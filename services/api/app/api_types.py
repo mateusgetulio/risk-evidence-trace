@@ -62,6 +62,25 @@ class Decision:
 
 
 @strawberry.type
+class Transmission:
+    id: int
+    state: str
+    attempts: int
+    idempotency_key: str
+    last_error: str | None
+    decision_run_id: int
+    acknowledgement_id: str | None
+
+
+@strawberry.type
+class SendResult:
+    transmission_id: int
+    state: str
+    queued: bool
+    replay: bool
+
+
+@strawberry.type
 class Submission:
     id: int
     company_name: str
@@ -71,6 +90,7 @@ class Submission:
     pending_jobs: int
     observations: list[Observation]
     decision: Decision | None
+    transmission: Transmission | None
 
 
 @strawberry.type

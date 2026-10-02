@@ -43,3 +43,20 @@ export function signed(points: number): string {
 export function contributionKey(ruleId: string, observationId: number | null): string {
   return `${ruleId}:${observationId ?? "missing"}`;
 }
+
+export const REFER_THRESHOLD = 15;
+
+export function describeTotal(
+  outcome: "QUOTE" | "REFER" | "DECLINE",
+  total: number,
+  blockerCount: number,
+): string {
+  if (outcome === "DECLINE") return "Decline rule HD-01 applies whatever the points are.";
+  if (total >= REFER_THRESHOLD) {
+    return `At or above the ${REFER_THRESHOLD} point refer threshold.`;
+  }
+  const base = `Below the ${REFER_THRESHOLD} point refer threshold`;
+  if (blockerCount > 0) return `${base}, but a review blocker forces REFER.`;
+  if (total < 0) return `${base}. Negative points mean verified evidence lowered the risk.`;
+  return `${base}.`;
+}

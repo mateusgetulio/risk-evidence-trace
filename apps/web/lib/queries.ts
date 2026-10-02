@@ -16,6 +16,7 @@ query Page($id: Int!) {
       blockers { kind observationId reason }
       superseded { observationId supersededBy }
     }
+    transmission { id state attempts idempotencyKey lastError acknowledgementId }
   }
   timeline(submissionId: $id) { id at kind message }
 }
@@ -29,4 +30,10 @@ mutation DeliverFixture($id: Int!, $fixture: String!) {
 
 export const RESET_DEMO = `
 mutation ResetDemo { resetDemo { submissionIds } }
+`;
+
+export const SEND_TO_CARRIER = `
+mutation SendToCarrier($id: Int!) {
+  sendToCarrier(submissionId: $id) { transmissionId state queued replay }
+}
 `;

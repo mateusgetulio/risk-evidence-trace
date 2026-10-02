@@ -1,9 +1,10 @@
-import { contributionKey, signed } from "@/lib/labels";
-import type { Contribution, Decision } from "@/lib/types";
+import { contributionKey, describeTotal, signed } from "@/lib/labels";
+import type { Contribution, Decision, Transmission } from "@/lib/types";
 import { DeveloperDetails } from "./DeveloperDetails";
 
 type Props = {
   decision: Decision | null;
+  transmission: Transmission | null;
   selectedKey: string | null;
   onSelect: (key: string | null) => void;
 };
@@ -41,7 +42,7 @@ function ContributionRow({
   );
 }
 
-export function DecisionColumn({ decision, selectedKey, onSelect }: Props) {
+export function DecisionColumn({ decision, transmission, selectedKey, onSelect }: Props) {
   if (!decision) {
     return (
       <section className="column" aria-labelledby="decision-heading">
@@ -65,6 +66,9 @@ export function DecisionColumn({ decision, selectedKey, onSelect }: Props) {
           {decision.totalPoints} points
         </span>
       </div>
+      <p className="total-note" data-testid="total-note">
+        {describeTotal(decision.outcome, decision.totalPoints, decision.blockers.length)}
+      </p>
       {flipped ? (
         <p className="flip" data-testid="flip">
           Changed from {decision.previousOutcome} ({decision.previousPoints} points)
@@ -123,6 +127,20 @@ export function DecisionColumn({ decision, selectedKey, onSelect }: Props) {
               </li>
             ))}
           </ul>
+        </div>
+      ) : null}
+
+      {transmission ? (
+        <div className="carrier" data-testid="carrier-status">
+          <h3>Carrier hand-off</h3>
+          <p>
+            {transmission.state === "delivered"
+              ? `Delivered after ${transmission.attempts} attempt${transmission.attempts === 1 ? "" : "s"}. Acknowledgement ${transmission.acknowledgementId}.`
+              : transmission.state === "pending"
+                ? "Sending to the carrier partner..."
+                : `Not delivered: ${transmission.lastError}.`}
+          </p>
+          <p className="muted">Idempotency key: {transmission.idempotencyKey}</p>
         </div>
       ) : null}
 

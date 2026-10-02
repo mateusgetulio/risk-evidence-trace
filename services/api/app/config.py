@@ -17,3 +17,19 @@ def fixtures_dir() -> Path:
     if configured:
         return Path(configured)
     return Path(__file__).resolve().parents[3] / "fixtures"
+
+
+def carrier_url() -> str:
+    return os.environ.get("CARRIER_URL", "http://localhost:8000/carrier")
+
+
+def carrier_client_timeout() -> float:
+    return float(os.environ.get("CARRIER_CLIENT_TIMEOUT", "2.0"))
+
+
+def carrier_stall_seconds() -> float:
+    return float(os.environ.get("CARRIER_STALL_SECONDS", "3.5"))
+
+
+def carrier_default_mode() -> str:
+    return os.environ.get("CARRIER_MODE", "ok")

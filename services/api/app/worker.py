@@ -9,6 +9,7 @@ from sqlalchemy import Engine
 
 from app import jobs
 from app.recompute import recompute_decision
+from app.transmit import SEND_JOB, send_to_carrier
 
 log = logging.getLogger("worker")
 
@@ -19,7 +20,7 @@ def _recompute(engine: Engine, payload: dict[str, Any]) -> None:
     recompute_decision(engine, int(payload["submission_id"]))
 
 
-HANDLERS: dict[str, Handler] = {"recompute_decision": _recompute}
+HANDLERS: dict[str, Handler] = {"recompute_decision": _recompute, SEND_JOB: send_to_carrier}
 
 
 def run_once(engine: Engine, handlers: dict[str, Handler] | None = None) -> bool:

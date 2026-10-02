@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { graphql, recordOperation } from "./api";
-import { DELIVER_FIXTURE, PAGE_QUERY, RESET_DEMO } from "./queries";
+import { DELIVER_FIXTURE, PAGE_QUERY, RESET_DEMO, SEND_TO_CARRIER } from "./queries";
 import type { PageData } from "./types";
 
 const POLL_MS = 1500;
@@ -70,7 +70,11 @@ export function useSubmission(id: number) {
     (fixture: string) => run("DeliverFixture", DELIVER_FIXTURE, { id, fixture }),
     [id, run],
   );
+  const sendToCarrier = useCallback(
+    () => run("SendToCarrier", SEND_TO_CARRIER, { id }),
+    [id, run],
+  );
   const resetDemo = useCallback(() => run("ResetDemo", RESET_DEMO, {}), [run]);
 
-  return { data, error, busy, deliverFixture, resetDemo };
+  return { data, error, busy, deliverFixture, sendToCarrier, resetDemo };
 }

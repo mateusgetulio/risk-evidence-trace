@@ -38,6 +38,15 @@ export type Decision = {
   superseded: Superseded[];
 };
 
+export type Transmission = {
+  id: number;
+  state: "pending" | "delivered" | "failed";
+  attempts: number;
+  idempotencyKey: string;
+  lastError: string | null;
+  acknowledgementId: string | null;
+};
+
 export type Submission = {
   id: number;
   companyName: string;
@@ -47,6 +56,7 @@ export type Submission = {
   pendingJobs: number;
   observations: Observation[];
   decision: Decision | null;
+  transmission: Transmission | null;
 };
 
 export type TimelineEvent = { id: number; at: string; kind: string; message: string };

@@ -15,7 +15,7 @@ const APPLICANTS = [
 ];
 
 export function SubmissionPage({ id }: { id: number }) {
-  const { data, error, busy, deliverFixture, resetDemo } = useSubmission(id);
+  const { data, error, busy, deliverFixture, sendToCarrier, resetDemo } = useSubmission(id);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const submission = data?.submission ?? null;
@@ -50,6 +50,9 @@ export function SubmissionPage({ id }: { id: number }) {
           <ActionBar
             domain={submission.primaryDomain}
             busy={busy}
+            isQuote={decision?.outcome === "QUOTE"}
+            transmission={submission.transmission}
+            onSend={() => void sendToCarrier()}
             onDeliverScan={() => void deliverFixture("acme_late_scan")}
             onReset={() => void resetDemo()}
           />
@@ -70,7 +73,12 @@ export function SubmissionPage({ id }: { id: number }) {
             selectedObservationId={selected?.observationId ?? null}
             missingSelected={selected?.missingEvidence ?? false}
           />
-          <DecisionColumn decision={decision} selectedKey={selectedKey} onSelect={setSelectedKey} />
+          <DecisionColumn
+            decision={decision}
+            transmission={submission.transmission}
+            selectedKey={selectedKey}
+            onSelect={setSelectedKey}
+          />
           <TimelineColumn events={data?.timeline ?? []} pending={submission.pendingJobs > 0} />
         </div>
       ) : error ? null : (
