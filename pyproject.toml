@@ -1,0 +1,19 @@
+[project]
+name = "risk-evidence-trace"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["packages/decision/src", "services/api"]
+testpaths = ["packages/decision/tests", "services/api/tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+strict = true
+files = ["packages/decision/src"]
