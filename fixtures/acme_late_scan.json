@@ -1,0 +1,12 @@
+{
+  "primary_domain": "acme.test",
+  "deliveries": [
+    {
+      "provider": "external_scan",
+      "records": [
+        {"finding_id": "acme-scan-vuln", "kind": "critical_vulnerability", "host": "vpn.acme.test", "detected": true, "seen_hours_ago": 2},
+        {"finding_id": "acme-scan-login-mfa", "kind": "login_mfa", "host": "vpn.acme.test", "mfa_observed": false, "seen_hours_ago": 2}
+      ]
+    }
+  ]
+}

@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
-from conftest import AS_OF
 from decision import Observation, Outcome, Source, decide
+from support import AS_OF
 
 
 def obs(

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from conftest import AS_OF, observation_lists
 from decision import RULE_SET_VERSION, Observation, Outcome, Source, decide, input_hash
 from decision.rules import FRESHNESS
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from support import AS_OF, observation_lists
 
 SEVERITY = {Outcome.QUOTE: 0, Outcome.REFER: 1, Outcome.DECLINE: 2}
 

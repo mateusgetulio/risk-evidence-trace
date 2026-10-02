@@ -1,0 +1,18 @@
+{
+  "primary_domain": "acme.test",
+  "deliveries": [
+    {
+      "provider": "applicant",
+      "records": [
+        {"attestation_id": "acme-att-mfa", "control": "mfa_remote_access", "answer": "yes", "attested_days_ago": 94},
+        {"attestation_id": "acme-att-backups", "control": "backups_tested", "answer": "yes", "attested_days_ago": 85}
+      ]
+    },
+    {
+      "provider": "posture",
+      "records": [
+        {"check_id": "acme-posture-mfa", "control": "mfa", "status": "verified", "checked_minutes_ago": 18}
+      ]
+    }
+  ]
+}

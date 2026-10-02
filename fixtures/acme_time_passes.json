@@ -1,0 +1,5 @@
+{
+  "primary_domain": "acme.test",
+  "advance_clock_days": 6,
+  "deliveries": []
+}
