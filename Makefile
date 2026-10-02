@@ -1,7 +1,7 @@
 PY := .venv/bin/python
 export PYTHONPATH := packages/decision/src:services/api
 
-.PHONY: setup db test lint denylist seed
+.PHONY: setup db test lint denylist seed api worker web
 
 setup:
 	python3 -m venv .venv
@@ -25,3 +25,12 @@ denylist:
 
 seed: db
 	$(PY) -m app.seed
+
+api:
+	DEMO_MODE=1 $(PY) -m uvicorn app.main:app --port 8000
+
+worker:
+	$(PY) -m app.worker
+
+web:
+	cd apps/web && npm run dev
