@@ -104,7 +104,10 @@ def get_submission(engine: Engine, submission_id: int) -> t.Submission | None:
         sent = conn.execute(
             text(
                 "SELECT t.id, t.state, t.attempts, t.idempotency_key, t.last_error, "
-                "t.decision_run_id, c.acknowledgement->>'acknowledgement_id' AS ack "
+                "t.decision_run_id, c.acknowledgement->>'acknowledgement_id' AS ack, "
+                "(SELECT min(j.run_at) FROM jobs j WHERE j.kind = 'send_to_carrier' "
+                "  AND (j.payload->>'transmission_id')::bigint = t.id "
+                "  AND j.run_at > now()) AS next_retry_at "
                 "FROM transmissions t JOIN decision_runs r ON r.id = t.decision_run_id "
                 "LEFT JOIN carrier_receipts c ON c.idempotency_key = t.idempotency_key "
                 "WHERE r.submission_id = :id AND t.decision_run_id = ("
@@ -148,6 +151,7 @@ def get_submission(engine: Engine, submission_id: int) -> t.Submission | None:
             last_error=sent.last_error,
             decision_run_id=int(sent.decision_run_id),
             acknowledgement_id=sent.ack,
+            next_retry_at=sent.next_retry_at,
         ),
     )
 
@@ -234,9 +238,18 @@ def _message(kind: str, detail: dict[str, Any]) -> str:
     if kind == "transmission_created":
         return "Quote queued for the carrier partner."
     if kind == "transmission_attempt_failed":
-        return (
+        message = (
             f"Attempt {detail['attempt']} to reach the carrier partner failed: {detail['error']}."
         )
+        delay = detail.get("retry_in_seconds")
+        if delay is not None:
+            message += (
+                " One automatic retry with the same idempotency key is scheduled in "
+                f"{round(delay)} seconds."
+            )
+        return message
+    if kind == "transmission_retry_requested":
+        return "Retry requested now instead of waiting for the scheduled time."
     if kind == "transmission_delivered":
         ack = detail["acknowledgement_id"]
         if detail["carrier_already_had_it"]:

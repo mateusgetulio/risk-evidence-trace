@@ -31,5 +31,9 @@ def carrier_stall_seconds() -> float:
     return float(os.environ.get("CARRIER_STALL_SECONDS", "3.5"))
 
 
+def carrier_retry_delay_seconds() -> float:
+    return float(os.environ.get("CARRIER_RETRY_DELAY_SECONDS", "60"))
+
+
 def carrier_default_mode() -> str:
     return os.environ.get("CARRIER_MODE", "ok")

@@ -41,10 +41,18 @@ export const STEPS: GuideStep[] = [
   },
   {
     number: 4,
-    title: "Carrier hand-off",
+    title: "Carrier timeout",
     submissionId: HARBOR_ID,
     caption:
-      "Harbor Dental Group is a clean QUOTE sent to the carrier partner: the first attempt times out and the retry succeeds; now press Send again, and the carrier returns its original acknowledgement, so the quote is recorded once.",
+      "Harbor Dental Group is a clean QUOTE, so we send it to the carrier partner: the first attempt times out, and the worker schedules one automatic retry with the same idempotency key.",
+    action: { kind: "send" },
+  },
+  {
+    number: 5,
+    title: "No duplicate",
+    submissionId: HARBOR_ID,
+    caption:
+      "The retry goes out now with the same idempotency key: the carrier had already recorded the first attempt, so it returns its original acknowledgement and the quote exists only once.",
     action: { kind: "send" },
   },
 ];

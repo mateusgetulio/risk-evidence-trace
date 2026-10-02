@@ -7,7 +7,8 @@ import httpx
 from sqlalchemy import Engine, text
 
 from app import audit, jobs
-from app.config import carrier_client_timeout, carrier_url
+from app.config import carrier_client_timeout, carrier_retry_delay_seconds, carrier_url
+from app.db import dumps
 
 SEND_JOB = "send_to_carrier"
 MAX_ATTEMPTS = 2
@@ -76,7 +77,23 @@ def request_send(engine: Engine, submission_id: int) -> SendResult:
         ).one()
         transmission_id = int(existing.id)
         if existing.state == "pending":
-            return SendResult(transmission_id, "pending", queued=False, replay=False)
+            pulled = conn.execute(
+                text(
+                    "UPDATE jobs SET run_at = now() "
+                    "WHERE kind = :kind AND (payload->>'transmission_id')::bigint = :id "
+                    "AND run_at > now() AND locked_at IS NULL RETURNING id"
+                ),
+                {"kind": SEND_JOB, "id": transmission_id},
+            ).first()
+            if pulled is None:
+                return SendResult(transmission_id, "pending", queued=False, replay=False)
+            audit.record(
+                conn,
+                submission_id,
+                "transmission_retry_requested",
+                {"transmission_id": transmission_id},
+            )
+            return SendResult(transmission_id, "pending", queued=True, replay=False)
         replay = existing.state == "delivered"
         if not replay:
             conn.execute(
@@ -119,7 +136,12 @@ def _bump_attempts(engine: Engine, transmission_id: int) -> int:
 
 
 def _record_failure(
-    engine: Engine, submission_id: int, transmission_id: int, attempt: int, error: str
+    engine: Engine,
+    submission_id: int,
+    transmission_id: int,
+    attempt: int,
+    error: str,
+    retry_in_seconds: float | None,
 ) -> None:
     with engine.begin() as conn:
         conn.execute(
@@ -130,8 +152,31 @@ def _record_failure(
             conn,
             submission_id,
             "transmission_attempt_failed",
-            {"transmission_id": transmission_id, "attempt": attempt, "error": error},
+            {
+                "transmission_id": transmission_id,
+                "attempt": attempt,
+                "error": error,
+                "retry_in_seconds": retry_in_seconds,
+            },
         )
+        if retry_in_seconds is not None:
+            conn.execute(
+                text(
+                    "INSERT INTO jobs (kind, payload, run_at) "
+                    "VALUES (:kind, CAST(:payload AS jsonb), now() + make_interval(secs => :delay))"
+                ),
+                {
+                    "kind": SEND_JOB,
+                    "payload": dumps(
+                        {
+                            "submission_id": submission_id,
+                            "transmission_id": transmission_id,
+                            "retry": True,
+                        }
+                    ),
+                    "delay": retry_in_seconds,
+                },
+            )
 
 
 def send_to_carrier(engine: Engine, payload: dict[str, Any]) -> None:
@@ -154,27 +199,29 @@ def send_to_carrier(engine: Engine, payload: dict[str, Any]) -> None:
         _replay(engine, row, submission_id, transmission_id)
         return
 
-    last_error = "no attempt made"
-    for _ in range(MAX_ATTEMPTS):
-        attempt = _bump_attempts(engine, transmission_id)
-        try:
-            response = _post(row, row.idempotency_key)
-        except httpx.TimeoutException:
-            last_error = "timeout"
-        except httpx.TransportError as exc:
-            last_error = f"connection error: {type(exc).__name__}"
-        else:
-            if response.status_code >= 500:
-                last_error = f"carrier error {response.status_code}"
-            elif response.status_code >= 400:
-                _fail(engine, submission_id, transmission_id, f"rejected {response.status_code}")
-                return
-            else:
-                _succeed(engine, submission_id, transmission_id, attempt, response)
-                return
-        _record_failure(engine, submission_id, transmission_id, attempt, last_error)
+    is_retry = bool(payload.get("retry", False))
+    attempt = _bump_attempts(engine, transmission_id)
+    try:
+        response = _post(row, row.idempotency_key)
+    except httpx.TimeoutException:
+        error = "timeout"
+    except httpx.TransportError as exc:
+        error = f"connection error: {type(exc).__name__}"
+    else:
+        if response.status_code < 400:
+            _succeed(engine, submission_id, transmission_id, attempt, response)
+            return
+        if response.status_code < 500:
+            _fail(engine, submission_id, transmission_id, f"rejected {response.status_code}")
+            return
+        error = f"carrier error {response.status_code}"
 
-    _fail(engine, submission_id, transmission_id, last_error, attempts=MAX_ATTEMPTS)
+    if is_retry:
+        _record_failure(engine, submission_id, transmission_id, attempt, error, None)
+        _fail(engine, submission_id, transmission_id, error, attempts=MAX_ATTEMPTS)
+    else:
+        delay = carrier_retry_delay_seconds()
+        _record_failure(engine, submission_id, transmission_id, attempt, error, delay)
 
 
 def _replay(engine: Engine, row: Any, submission_id: int, transmission_id: int) -> None:

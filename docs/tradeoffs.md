@@ -10,7 +10,7 @@ For carrier sends the same applies one level up. A `failed` transmission waits f
 
 ## Backoff and jitter
 
-The carrier send retries once, immediately, and failed jobs come back after a fixed 2 seconds. Under a real outage that would hammer the partner. The fix is exponential backoff with full jitter, a cap, and a circuit breaker per partner so one slow carrier does not tie up workers meant for others.
+The carrier send retries once after a fixed delay, and other failed jobs come back after a fixed 2 seconds. Under a real outage that would hammer the partner. The fix is exponential backoff with full jitter, a cap, and a circuit breaker per partner so one slow carrier does not tie up workers meant for others.
 
 ## More carrier failure modes
 

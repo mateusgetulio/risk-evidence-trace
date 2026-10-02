@@ -45,6 +45,7 @@ export type Transmission = {
   idempotencyKey: string;
   lastError: string | null;
   acknowledgementId: string | null;
+  nextRetryAt: string | null;
 };
 
 export type Submission = {

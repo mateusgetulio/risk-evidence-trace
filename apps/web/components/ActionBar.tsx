@@ -24,7 +24,9 @@ export function ActionBar({
   const scanAvailable = SCAN_FIXTURE_DOMAINS.has(domain);
   const inFlight = transmission?.state === "pending";
   const canSend = isQuote && !transmission;
-  const canSendAgain = transmission !== null && transmission.state !== "pending";
+  const retryScheduled = transmission?.state === "pending" && transmission.nextRetryAt !== null;
+  const canSendAgain =
+    transmission !== null && (transmission.state !== "pending" || retryScheduled);
   return (
     <div className="actions" role="toolbar" aria-label="Actions">
       <button
@@ -45,8 +47,12 @@ export function ActionBar({
       >
         Send quote to carrier
       </button>
-      <button type="button" onClick={onSend} disabled={busy || inFlight || !canSendAgain}>
-        Send again
+      <button
+        type="button"
+        onClick={onSend}
+        disabled={busy || (inFlight && !retryScheduled) || !canSendAgain}
+      >
+        {retryScheduled ? "Retry now" : "Send again"}
       </button>
       <button type="button" onClick={onReset} disabled={busy}>
         Reset demo

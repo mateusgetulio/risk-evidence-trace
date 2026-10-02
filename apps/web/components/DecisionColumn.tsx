@@ -136,7 +136,9 @@ export function DecisionColumn({ decision, transmission, selectedKey, onSelect }
           <p>
             {transmission.state === "delivered"
               ? `Delivered after ${transmission.attempts} attempt${transmission.attempts === 1 ? "" : "s"}. Acknowledgement ${transmission.acknowledgementId}.`
-              : transmission.state === "pending"
+              : transmission.state === "pending" && transmission.nextRetryAt
+                ? `Attempt ${transmission.attempts} failed: ${transmission.lastError}. Automatic retry at ${new Date(transmission.nextRetryAt).toLocaleTimeString()}, or press Retry now.`
+                : transmission.state === "pending"
                 ? "Sending to the carrier partner..."
                 : `Not delivered: ${transmission.lastError}.`}
           </p>

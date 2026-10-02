@@ -70,6 +70,7 @@ class Transmission:
     last_error: str | None
     decision_run_id: int
     acknowledgement_id: str | None
+    next_retry_at: datetime | None
 
 
 @strawberry.type

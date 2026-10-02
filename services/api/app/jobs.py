@@ -88,7 +88,8 @@ def pending_count(conn: Connection, submission_id: int) -> int:
     row = conn.execute(
         text(
             "SELECT count(*) AS n FROM jobs "
-            "WHERE (payload->>'submission_id')::int = :id AND attempts < :max_attempts"
+            "WHERE (payload->>'submission_id')::int = :id AND attempts < :max_attempts "
+            "AND run_at <= now()"
         ),
         {"id": submission_id, "max_attempts": MAX_ATTEMPTS},
     ).one()

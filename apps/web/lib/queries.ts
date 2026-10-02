@@ -16,7 +16,7 @@ query Page($id: Int!) {
       blockers { kind observationId reason }
       superseded { observationId supersededBy }
     }
-    transmission { id state attempts idempotencyKey lastError acknowledgementId }
+    transmission { id state attempts idempotencyKey lastError acknowledgementId nextRetryAt }
   }
   timeline(submissionId: $id) { id at kind message }
 }

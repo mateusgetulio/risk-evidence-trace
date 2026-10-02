@@ -93,8 +93,9 @@ Duplicate or out-of-order jobs end up at the same result.
 
 The worker posts to `/carrier/quotes` with an `Idempotency-Key` header, using a 2 second timeout.
 
-- On a timeout, a connection error or a 5xx it retries once.
-- After two failures the transmission is `failed`, and "Send again" re-queues it with the same key.
+- On a timeout, a connection error or a 5xx it schedules one retry as a separate job, `CARRIER_RETRY_DELAY_SECONDS` later (60 by default). The transmission stays `pending` meanwhile, and the page shows when the retry is due.
+- Calling `sendToCarrier` while that retry is waiting moves it to now ("Retry now" in the page, step 5 of the guided demo). It never creates a second job or a second key.
+- If the retry fails too, the transmission is `failed`, and "Send again" re-queues it with the same key.
 - When the transmission is already delivered, "Send again" replays the request. The carrier answers with its stored acknowledgement and marks it `Idempotent-Replay: true`. A replay only writes audit events: if it fails, the delivered transmission stays delivered.
 
 The simulator has two modes: `ok` and `timeout_once`.
@@ -124,7 +125,7 @@ One route, three columns and an action bar.
 - **Decision column:** the outcome badge, the total with a sentence relating it to the 15 point threshold, the contribution rows and the rows that no longer apply.
 - **Clicking a row:** it highlights its evidence card and shows the rule text. Rows that changed since the previous run are highlighted.
 - **Timeline column:** polls every 1.5 seconds while a job is pending.
-- **Guided demo:** adds a step bar whose "Next step" runs that step's real mutation.
+- **Guided demo:** adds a step bar whose "Next step" runs that step's real mutation. It has five steps; the spec's fourth step is split into the timeout and the retry.
 - **Developer details:** a collapsed disclosure that shows the last GraphQL operation and response.
 
 ## Tests

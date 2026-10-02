@@ -16,12 +16,13 @@ Video walkthrough (3 minutes): link added after recording.
 
 One page, one interaction: a new piece of evidence visibly changes the decision, and clicking the changed points shows exactly which observation and which rule caused them.
 
-The guided demo walks through four steps against the real backend:
+The guided demo walks through five steps against the real backend. The spec had four; the carrier hand-off is split in two so the timeout and the retry can be shown one at a time.
 
 1. **Submission.** Acme Manufacturing (`acme.test`) applies. The applicant attests to MFA and tested backups, and the security posture provider verifies MFA. Decision: QUOTE at -5 points, because verified backups lower the risk.
 2. **Late scan.** The external scan provider reports a critical internet-exposed vulnerability on `vpn.acme.test` and no MFA on the VPN login page. A worker recomputes and the decision flips to REFER. The new row is highlighted, and clicking it highlights the observation behind it and shows the rule.
 3. **Who do we believe?** Three sources disagree about MFA. Precedence picks the posture provider and marks the other two "superseded by #id". Scenario time then moves forward 6 days: the applicant's backup attestation passes its 90 day window, so it can no longer lower risk and adds a needs-review blocker.
-4. **Carrier hand-off.** Harbor Dental Group (`harbor.test`) is a clean QUOTE. Sending it to the carrier partner: the first attempt times out, the retry succeeds. "Send again" returns the carrier's original acknowledgement for the same idempotency key, so the quote is recorded once.
+4. **Carrier timeout.** Harbor Dental Group (`harbor.test`) is a clean QUOTE. Sending it to the carrier partner, the first attempt times out, and the worker schedules one automatic retry with the same idempotency key a minute later.
+5. **No duplicate.** "Next step" sends the retry now instead of waiting. The carrier had already recorded the first attempt, so it returns its original acknowledgement and the quote exists once. "Send again" afterwards gets the same acknowledgement.
 
 The decision comes from five named rules:
 
@@ -89,7 +90,7 @@ More detail is in [docs/architecture.md](docs/architecture.md).
 | The same observation is delivered twice | Nothing new is stored and no job is queued | No new timeline event |
 | The worker crashes mid-job | The job lock expires after 60 seconds and another worker reclaims it; recompute is safe to repeat | The job stays pending, then completes |
 | Recompute runs with unchanged inputs | No new decision run is stored | Timeline: "Nothing changed" |
-| Carrier times out | One retry with the same idempotency key | Timeline: "Attempt 1 ... failed: timeout", then "Retry succeeded" |
+| Carrier times out | One automatic retry with the same idempotency key, scheduled a minute later; "Retry now" pulls it forward | Timeline: "Attempt 1 ... failed: timeout. One automatic retry ... is scheduled", then "Retry succeeded" |
 | Carrier response is lost after it recorded the quote | The retry gets the stored acknowledgement, no second quote | Timeline: "The carrier had already recorded the first attempt" |
 | Carrier is down for both attempts | The transmission is marked failed with the error | Carrier hand-off panel; "Send again" retries with the same key |
 | The API is down | The page shows an error banner and keeps the last data | Red banner at the top |

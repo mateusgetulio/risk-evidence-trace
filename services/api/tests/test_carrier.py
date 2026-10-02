@@ -31,6 +31,7 @@ def live_carrier(engine: Engine, monkeypatch: pytest.MonkeyPatch) -> Iterator[st
     monkeypatch.setenv("CARRIER_URL", url)
     monkeypatch.setenv("CARRIER_CLIENT_TIMEOUT", "0.3")
     monkeypatch.setenv("CARRIER_STALL_SECONDS", "1.0")
+    monkeypatch.setenv("CARRIER_RETRY_DELAY_SECONDS", "0")
     monkeypatch.setenv("DEMO_MODE", "1")
     carrier.state.set_mode("ok")
     server = uvicorn.Server(
@@ -249,3 +250,69 @@ def test_a_failed_replay_never_changes_the_delivered_transmission(
     kinds = [e.kind for e in audit_events(engine, harbor)]
     assert kinds[-1] == "transmission_replay_failed"
     assert "transmission_failed" not in kinds
+
+
+def test_the_retry_waits_for_its_delay_and_can_be_pulled_forward(
+    engine: Engine, live_carrier: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app import jobs
+
+    monkeypatch.setenv("CARRIER_RETRY_DELAY_SECONDS", "60")
+    harbor = seed(engine)["harbor.test"]
+    carrier.state.set_mode("timeout_once")
+    request_send(engine, harbor)
+    run_until_idle(engine)
+
+    with engine.connect() as conn:
+        row = conn.execute(text("SELECT state, attempts, last_error FROM transmissions")).one()
+        assert jobs.pending_count(conn, harbor) == 0
+        scheduled = conn.execute(
+            text("SELECT count(*) FROM jobs WHERE run_at > now() + interval '30 seconds'")
+        ).scalar_one()
+    assert (row.state, row.attempts, row.last_error) == ("pending", 1, "timeout")
+    assert scheduled == 1
+    failed = next(
+        e for e in audit_events(engine, harbor) if e.kind == "transmission_attempt_failed"
+    )
+    assert failed.detail["retry_in_seconds"] == 60
+
+    now = request_send(engine, harbor)
+    assert now.queued and not now.replay
+    run_until_idle(engine)
+
+    assert scalar(engine, "SELECT state FROM transmissions") == "delivered"
+    assert scalar(engine, "SELECT attempts FROM transmissions") == 2
+    assert scalar(engine, "SELECT count(*) FROM carrier_receipts") == 1
+    assert scalar(engine, "SELECT count(*) FROM jobs") == 0
+    kinds = [e.kind for e in audit_events(engine, harbor) if e.kind.startswith("transmission_")]
+    assert kinds == [
+        "transmission_created",
+        "transmission_attempt_failed",
+        "transmission_retry_requested",
+        "transmission_delivered",
+    ]
+    delivered = next(e for e in audit_events(engine, harbor) if e.kind == "transmission_delivered")
+    assert delivered.detail["carrier_already_had_it"] is True
+
+
+def test_graphql_shows_when_the_retry_is_scheduled(
+    engine: Engine, live_carrier: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setenv("CARRIER_RETRY_DELAY_SECONDS", "60")
+    client = TestClient(create_app(engine))
+    harbor = seed(engine)["harbor.test"]
+    carrier.state.set_mode("timeout_once")
+    request_send(engine, harbor)
+    run_until_idle(engine)
+    read = (
+        "query ($id: Int!) { submission(id: $id) { pendingJobs "
+        "transmission { state lastError nextRetryAt } } }"
+    )
+    body = client.post("/graphql", json={"query": read, "variables": {"id": harbor}}).json()
+    submission = body["data"]["submission"]
+    assert submission["pendingJobs"] == 0
+    assert submission["transmission"]["state"] == "pending"
+    assert submission["transmission"]["lastError"] == "timeout"
+    assert submission["transmission"]["nextRetryAt"] is not None

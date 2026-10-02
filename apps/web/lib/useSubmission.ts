@@ -43,7 +43,8 @@ export function useSubmission(id: number) {
     };
   }, [load]);
 
-  const pending = data?.submission?.pendingJobs ?? 0;
+  const waitingForRetry = data?.submission?.transmission?.nextRetryAt ? 1 : 0;
+  const pending = (data?.submission?.pendingJobs ?? 0) + waitingForRetry;
   useEffect(() => {
     if (pending === 0) return;
     const timer = setTimeout(() => void load(true), POLL_MS);
