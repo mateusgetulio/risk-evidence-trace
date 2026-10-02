@@ -32,9 +32,11 @@ def run_once(engine: Engine, handlers: dict[str, Handler] | None = None) -> bool
         table[job.kind](engine, job.payload)
     except Exception:
         log.exception("job %s (%s) failed on attempt %s", job.id, job.kind, job.attempts)
-        jobs.release_for_retry(engine, job.id)
+        if not jobs.release_for_retry(engine, job):
+            log.warning("job %s was reclaimed by another worker before release", job.id)
         return True
-    jobs.complete(engine, job.id)
+    if not jobs.complete(engine, job):
+        log.warning("job %s was reclaimed by another worker before completion", job.id)
     return True
 
 

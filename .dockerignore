@@ -1,0 +1,11 @@
+.git
+.venv
+.pgdata
+.mypy_cache
+.ruff_cache
+.pytest_cache
+.hypothesis
+**/__pycache__
+apps/web/node_modules
+apps/web/.next
+scripts/denylist.txt

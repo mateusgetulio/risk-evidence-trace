@@ -150,11 +150,13 @@ def send_to_carrier(engine: Engine, payload: dict[str, Any]) -> None:
     if row.state == "delivered" and not replay:
         return
     submission_id = int(row.submission_id)
-    allowed = 1 if replay else MAX_ATTEMPTS
+    if replay:
+        _replay(engine, row, submission_id, transmission_id)
+        return
 
     last_error = "no attempt made"
-    for _ in range(allowed):
-        attempt = 1 if replay else _bump_attempts(engine, transmission_id)
+    for _ in range(MAX_ATTEMPTS):
+        attempt = _bump_attempts(engine, transmission_id)
         try:
             response = _post(row, row.idempotency_key)
         except httpx.TimeoutException:
@@ -168,12 +170,42 @@ def send_to_carrier(engine: Engine, payload: dict[str, Any]) -> None:
                 _fail(engine, submission_id, transmission_id, f"rejected {response.status_code}")
                 return
             else:
-                _succeed(engine, submission_id, transmission_id, attempt, response, replay)
+                _succeed(engine, submission_id, transmission_id, attempt, response)
                 return
         _record_failure(engine, submission_id, transmission_id, attempt, last_error)
 
-    if not replay:
-        _fail(engine, submission_id, transmission_id, last_error, attempts=allowed)
+    _fail(engine, submission_id, transmission_id, last_error, attempts=MAX_ATTEMPTS)
+
+
+def _replay(engine: Engine, row: Any, submission_id: int, transmission_id: int) -> None:
+    try:
+        response = _post(row, row.idempotency_key)
+    except httpx.TimeoutException:
+        error = "timeout"
+    except httpx.TransportError as exc:
+        error = f"connection error: {type(exc).__name__}"
+    else:
+        if response.status_code < 400:
+            with engine.begin() as conn:
+                audit.record(
+                    conn,
+                    submission_id,
+                    "transmission_replayed",
+                    {
+                        "transmission_id": transmission_id,
+                        "acknowledgement_id": response.json()["acknowledgement_id"],
+                        "same_as_original": response.headers.get("Idempotent-Replay") == "true",
+                    },
+                )
+            return
+        error = f"carrier error {response.status_code}"
+    with engine.begin() as conn:
+        audit.record(
+            conn,
+            submission_id,
+            "transmission_replay_failed",
+            {"transmission_id": transmission_id, "error": error},
+        )
 
 
 def _succeed(
@@ -182,23 +214,10 @@ def _succeed(
     transmission_id: int,
     attempt: int,
     response: httpx.Response,
-    replay: bool,
 ) -> None:
     acknowledgement = response.json()
     already_had_it = response.headers.get("Idempotent-Replay") == "true"
     with engine.begin() as conn:
-        if replay:
-            audit.record(
-                conn,
-                submission_id,
-                "transmission_replayed",
-                {
-                    "transmission_id": transmission_id,
-                    "acknowledgement_id": acknowledgement["acknowledgement_id"],
-                    "same_as_original": already_had_it,
-                },
-            )
-            return
         conn.execute(
             text("UPDATE transmissions SET state = 'delivered', last_error = NULL WHERE id = :id"),
             {"id": transmission_id},

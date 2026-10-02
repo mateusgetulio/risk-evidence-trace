@@ -176,6 +176,7 @@ def decision_trace(engine: Engine, submission_id: int, as_of: datetime | None) -
             observed_at=r.observed_at,
         )
         for r in rows
+        if r.observed_at <= as_of
     ]
     result = decide(observations, as_of, RULE_SET_VERSION)
     return t.Decision(
@@ -248,6 +249,11 @@ def _message(kind: str, detail: dict[str, Any]) -> str:
         return (
             "Send again returned the carrier's original acknowledgement "
             f"({detail['acknowledgement_id']}). Nothing was sent twice."
+        )
+    if kind == "transmission_replay_failed":
+        return (
+            f"Send again could not reach the carrier partner: {detail['error']}. "
+            "The delivered quote is unchanged."
         )
     if kind == "transmission_failed":
         return (

@@ -15,5 +15,43 @@ services:
       timeout: 3s
       retries: 20
 
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://rte:rte@db:5432/rte
+      DEMO_MODE: "1"
+      CARRIER_MODE: timeout_once
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    command: ["python", "-m", "app.worker"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://rte:rte@db:5432/rte
+      CARRIER_URL: http://api:8000/carrier
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+  web:
+    build:
+      context: apps/web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000/graphql
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
 volumes:
   dbdata:

@@ -8,7 +8,8 @@ import type { PageData } from "./types";
 const POLL_MS = 1500;
 
 export function useSubmission(id: number) {
-  const [data, setData] = useState<PageData | null>(null);
+  const [loaded, setLoaded] = useState<{ id: number; page: PageData | null } | null>(null);
+  const data = loaded?.id === id ? loaded.page : null;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const alive = useRef(true);
@@ -24,7 +25,7 @@ export function useSubmission(id: number) {
         }
         const pending = result.data?.submission?.pendingJobs ?? 0;
         if (!background || pending === 0) recordOperation(result.operation);
-        setData(result.data);
+        setLoaded({ id, page: result.data });
         setError(null);
       } catch {
         if (alive.current) setError("Could not reach the API. Is it running?");
@@ -76,5 +77,5 @@ export function useSubmission(id: number) {
   );
   const resetDemo = useCallback(() => run("ResetDemo", RESET_DEMO, {}), [run]);
 
-  return { data, error, busy, deliverFixture, sendToCarrier, resetDemo };
+  return { data, error, busy, run, deliverFixture, sendToCarrier, resetDemo };
 }

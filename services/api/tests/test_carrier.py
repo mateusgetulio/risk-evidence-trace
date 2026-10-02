@@ -229,3 +229,23 @@ def test_graphql_send_to_carrier_flow_shows_the_transmission(
     assert transmission["state"] == "delivered"
     assert transmission["acknowledgementId"].startswith("ack-")
     assert transmission["idempotencyKey"].startswith(f"quote-{harbor}-run-")
+
+
+def test_a_failed_replay_never_changes_the_delivered_transmission(
+    engine: Engine, live_carrier: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    harbor = seed(engine)["harbor.test"]
+    request_send(engine, harbor)
+    run_until_idle(engine)
+    monkeypatch.setenv("CARRIER_URL", f"http://127.0.0.1:{free_port()}/carrier")
+
+    again = request_send(engine, harbor)
+    assert again.replay
+    run_until_idle(engine)
+
+    with engine.connect() as conn:
+        row = conn.execute(text("SELECT state, attempts, last_error FROM transmissions")).one()
+    assert (row.state, row.attempts, row.last_error) == ("delivered", 1, None)
+    kinds = [e.kind for e in audit_events(engine, harbor)]
+    assert kinds[-1] == "transmission_replay_failed"
+    assert "transmission_failed" not in kinds

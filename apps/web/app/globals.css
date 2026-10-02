@@ -121,3 +121,14 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 .total-note { margin: 4px 0 0; color: var(--muted); font-weight: 600; }
 .carrier { border-top: 1px solid var(--line); margin-top: 12px; }
 .carrier p { margin: 4px 0; }
+
+.toggle[aria-pressed="true"] { background: var(--ink); color: #fff; }
+
+.guide { background: var(--panel); border: 2px solid var(--accent); border-radius: 12px; padding: 8px 14px; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
+.steps li { padding: 4px 12px; border-radius: 999px; border: 2px solid var(--line); font-weight: 600; color: var(--muted); }
+.steps li.done { color: var(--ink); border-color: var(--ink); }
+.steps li.current { background: var(--accent); border-color: var(--accent); color: #fff; }
+.step-number { font-weight: 800; }
+.guide-body { display: flex; align-items: center; gap: 16px; margin-top: 6px; }
+.caption { margin: 0; flex: 1; font-size: 17px; font-weight: 500; }

@@ -73,10 +73,8 @@ def test_late_scan_flips_quote_to_refer_with_provenance(engine: Engine) -> None:
     superseded = {s["observation_id"] for s in run.superseded}
     assert len(superseded) == 2
     kinds = audit_kinds(engine, acme)
-    assert (
-        kinds[-2:] == ["observation_received", "decision_computed"][-2:]
-        or "decision_computed" in kinds
-    )
+    assert kinds[-3:] == ["observation_received", "observation_received", "decision_computed"]
+    assert kinds.count("decision_computed") == 2
 
 
 def test_time_passing_makes_the_backup_attestation_stale(engine: Engine) -> None:
@@ -188,3 +186,57 @@ def test_concurrent_claims_never_hand_out_the_same_job(engine: Engine) -> None:
 
     assert len(claimed) == total
     assert len(set(claimed)) == total
+
+
+def test_claim_skips_a_row_another_transaction_holds(engine: Engine) -> None:
+    with engine.begin() as conn:
+        first = jobs.enqueue(conn, "noop", {"n": 1})
+        second = jobs.enqueue(conn, "noop", {"n": 2})
+    claimed: list[int] = []
+    with engine.connect() as holder:
+        holder.execute(text("BEGIN"))
+        holder.execute(text("SELECT id FROM jobs WHERE id = :id FOR UPDATE"), {"id": first})
+
+        def claim_one() -> None:
+            job = jobs.claim(engine)
+            if job is not None:
+                claimed.append(job.id)
+
+        thread = threading.Thread(target=claim_one)
+        thread.start()
+        thread.join(timeout=3)
+        still_waiting = thread.is_alive()
+        holder.execute(text("ROLLBACK"))
+        thread.join(timeout=3)
+    assert not still_waiting
+    assert claimed == [second]
+
+
+def test_a_stale_worker_cannot_complete_or_release_a_reclaimed_job(engine: Engine) -> None:
+    with engine.begin() as conn:
+        jobs.enqueue(conn, "noop", {})
+    stale = jobs.claim(engine)
+    assert stale is not None
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE jobs SET locked_at = now() + interval '1 second'"))
+    assert jobs.complete(engine, stale) is False
+    assert jobs.release_for_retry(engine, stale) is False
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM jobs")).scalar_one() == 1
+
+
+def test_a_job_past_its_attempt_limit_no_longer_counts_as_pending(engine: Engine) -> None:
+    acme = seed(engine)["acme.test"]
+    with engine.begin() as conn:
+        jobs.enqueue(conn, "noop", {"submission_id": acme})
+        assert jobs.pending_count(conn, acme) == 1
+        conn.execute(text("UPDATE jobs SET attempts = :n"), {"n": jobs.MAX_ATTEMPTS})
+        assert jobs.pending_count(conn, acme) == 0
+
+
+def test_seed_command_refuses_outside_demo_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.seed import main
+
+    monkeypatch.delenv("DEMO_MODE", raising=False)
+    with pytest.raises(SystemExit, match="DEMO_MODE=1"):
+        main()

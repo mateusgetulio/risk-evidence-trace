@@ -38,6 +38,7 @@ def recompute_decision(engine: Engine, submission_id: int) -> int | None:
                 observed_at=row.observed_at,
             )
             for row in rows
+            if row.observed_at <= as_of
         ]
         digest = input_hash([o.id for o in observations], as_of, RULE_SET_VERSION)
 

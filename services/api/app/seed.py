@@ -32,8 +32,11 @@ def seed(engine: Engine) -> dict[str, int]:
 
 
 def main() -> None:
-    from app.config import database_url
+    from app.config import database_url, demo_mode
     from app.db import make_engine
+
+    if not demo_mode():
+        raise SystemExit("Seeding wipes every table. Run it with DEMO_MODE=1.")
 
     ids = seed(make_engine(database_url()))
     for domain, submission_id in ids.items():

@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { STEPS, type GuideStep } from "@/lib/guide";
+import { DELIVER_FIXTURE, RESET_DEMO, SEND_TO_CARRIER } from "@/lib/queries";
 import { contributionKey } from "@/lib/labels";
 import { useSubmission } from "@/lib/useSubmission";
 import { ActionBar } from "./ActionBar";
 import { DecisionColumn } from "./DecisionColumn";
+import { GuidedBar } from "./GuidedBar";
 import { EvidenceColumn } from "./EvidenceColumn";
 import { TimelineColumn } from "./TimelineColumn";
 
@@ -14,9 +18,36 @@ const APPLICANTS = [
   { id: 2, label: "Harbor Dental Group" },
 ];
 
-export function SubmissionPage({ id }: { id: number }) {
-  const { data, error, busy, deliverFixture, sendToCarrier, resetDemo } = useSubmission(id);
+export function SubmissionPage({ id, step }: { id: number; step: number | null }) {
+  const { data, error, busy, run, deliverFixture, sendToCarrier, resetDemo } = useSubmission(id);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const router = useRouter();
+
+  const runStep = useCallback(
+    async (target: GuideStep) => {
+      const action = target.action;
+      if (action.kind === "reset") {
+        await run("ResetDemo", RESET_DEMO, {});
+      } else if (action.kind === "fixture") {
+        await run("DeliverFixture", DELIVER_FIXTURE, {
+          id: target.submissionId,
+          fixture: action.fixture,
+        });
+      } else {
+        await run("SendToCarrier", SEND_TO_CARRIER, { id: target.submissionId });
+      }
+      setSelectedKey(null);
+      router.push(`/submissions/${target.submissionId}?step=${target.number}`);
+    },
+    [run, router],
+  );
+
+  const startGuide = () => void runStep(STEPS[0]);
+  const nextStep = () => {
+    const next = STEPS.find((s) => s.number === (step ?? 0) + 1);
+    if (next) void runStep(next);
+  };
+  const exitGuide = () => router.push(`/submissions/${id}`);
 
   const submission = data?.submission ?? null;
   const decision = submission?.decision ?? null;
@@ -46,6 +77,15 @@ export function SubmissionPage({ id }: { id: number }) {
             </Link>
           ))}
         </nav>
+        <button
+          type="button"
+          className="toggle"
+          aria-pressed={step !== null}
+          onClick={step === null ? startGuide : exitGuide}
+          disabled={busy}
+        >
+          {step === null ? "Guided demo" : "Exit guided demo"}
+        </button>
         {submission ? (
           <ActionBar
             domain={submission.primaryDomain}
@@ -58,6 +98,15 @@ export function SubmissionPage({ id }: { id: number }) {
           />
         ) : null}
       </header>
+
+      {step !== null ? (
+        <GuidedBar
+          step={step}
+          busy={busy || (submission?.pendingJobs ?? 0) > 0}
+          onNext={nextStep}
+          onRestart={startGuide}
+        />
+      ) : null}
 
       {error ? (
         <p className="error" role="alert">

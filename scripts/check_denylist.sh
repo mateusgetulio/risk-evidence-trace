@@ -3,17 +3,15 @@ set -eu
 cd "$(dirname "$0")/.."
 tmp=$(mktemp)
 trap 'rm -f "$tmp" "$tmp.clean"' EXIT
-if [ -n "${DENYLIST:-}" ]; then
-  printf '%s\n' "$DENYLIST" > "$tmp"
-elif [ -f scripts/denylist.txt ]; then
+if [ -f scripts/denylist.txt ]; then
   cp scripts/denylist.txt "$tmp"
 else
-  echo "error: no DENYLIST secret and no scripts/denylist.txt. Add the DENYLIST secret in CI, or create scripts/denylist.txt locally (one entry per line)."
+  echo "error: scripts/denylist.txt is missing. Create it locally with one entry per line. It is not committed."
   exit 1
 fi
 tr -d '\r' < "$tmp" | sed 's/[[:space:]]*$//; /^$/d' > "$tmp.clean"
 if [ ! -s "$tmp.clean" ]; then
-  echo "error: the denylist is empty. Fill the DENYLIST secret or scripts/denylist.txt with one entry per line."
+  echo "error: scripts/denylist.txt is empty. Add one entry per line."
   exit 1
 fi
 hits=$(grep -rilwF -f "$tmp.clean" . \

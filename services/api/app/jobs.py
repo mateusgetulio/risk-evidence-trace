@@ -19,6 +19,7 @@ class Job:
     kind: str
     payload: dict[str, Any]
     attempts: int
+    locked_at: datetime
 
 
 def enqueue(
@@ -46,36 +47,49 @@ def claim(engine: Engine) -> Job | None:
                 "         OR locked_at < now() - make_interval(secs => :lock_seconds))"
                 "  ORDER BY run_at, id"
                 "  FOR UPDATE SKIP LOCKED LIMIT 1"
-                ") RETURNING id, kind, payload, attempts"
+                ") RETURNING id, kind, payload, attempts, locked_at"
             ),
             {"max_attempts": MAX_ATTEMPTS, "lock_seconds": LOCK_SECONDS},
         ).first()
     if row is None:
         return None
     return Job(
-        id=int(row.id), kind=str(row.kind), payload=dict(row.payload), attempts=int(row.attempts)
+        id=int(row.id),
+        kind=str(row.kind),
+        payload=dict(row.payload),
+        attempts=int(row.attempts),
+        locked_at=row.locked_at,
     )
 
 
-def complete(engine: Engine, job_id: int) -> None:
+def complete(engine: Engine, job: Job) -> bool:
     with engine.begin() as conn:
-        conn.execute(text("DELETE FROM jobs WHERE id = :id"), {"id": job_id})
+        result = conn.execute(
+            text("DELETE FROM jobs WHERE id = :id AND locked_at = :locked_at"),
+            {"id": job.id, "locked_at": job.locked_at},
+        )
+    return result.rowcount == 1
 
 
-def release_for_retry(engine: Engine, job_id: int) -> None:
+def release_for_retry(engine: Engine, job: Job) -> bool:
     with engine.begin() as conn:
-        conn.execute(
+        result = conn.execute(
             text(
                 "UPDATE jobs SET locked_at = NULL, "
-                "run_at = now() + make_interval(secs => :retry_seconds) WHERE id = :id"
+                "run_at = now() + make_interval(secs => :retry_seconds) "
+                "WHERE id = :id AND locked_at = :locked_at"
             ),
-            {"id": job_id, "retry_seconds": RETRY_SECONDS},
+            {"id": job.id, "locked_at": job.locked_at, "retry_seconds": RETRY_SECONDS},
         )
+    return result.rowcount == 1
 
 
 def pending_count(conn: Connection, submission_id: int) -> int:
     row = conn.execute(
-        text("SELECT count(*) AS n FROM jobs WHERE (payload->>'submission_id')::int = :id"),
-        {"id": submission_id},
+        text(
+            "SELECT count(*) AS n FROM jobs "
+            "WHERE (payload->>'submission_id')::int = :id AND attempts < :max_attempts"
+        ),
+        {"id": submission_id, "max_attempts": MAX_ATTEMPTS},
     ).one()
     return int(row.n)
