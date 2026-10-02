@@ -131,7 +131,13 @@ def _backup_contributions(winners: list[Observation], as_of: datetime) -> list[C
     backups = sorted((o for o in winners if o.claim == CLAIM_BACKUPS), key=lambda o: o.id)
     if not backups:
         return [
-            Contribution("BK-01", BK_UNVERIFIED_POINTS, None, "No backups observation received.")
+            Contribution(
+                "BK-01",
+                BK_UNVERIFIED_POINTS,
+                None,
+                "No backups evidence received.",
+                missing_evidence=True,
+            )
         ]
     for obs in backups:
         if not obs.value:

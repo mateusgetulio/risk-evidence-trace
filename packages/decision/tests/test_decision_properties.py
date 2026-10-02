@@ -93,3 +93,18 @@ def test_arrival_order_never_changes_the_decision(
         shuffled = list(observations)
         rng.shuffle(shuffled)  # type: ignore[attr-defined]
         assert decide(shuffled, AS_OF) == expected
+
+
+@given(observation_lists())
+def test_every_point_traces_to_evidence_or_explicit_missing_evidence(
+    observations: list[Observation],
+) -> None:
+    decision = decide(observations, AS_OF)
+    ids = {o.id for o in observations}
+    for contribution in decision.contributions:
+        if contribution.missing_evidence:
+            assert contribution.observation_id is None
+            assert contribution.rule_id == "BK-01"
+            assert contribution.reason == "No backups evidence received."
+        else:
+            assert contribution.observation_id in ids

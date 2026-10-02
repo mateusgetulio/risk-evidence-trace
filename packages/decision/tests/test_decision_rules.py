@@ -71,9 +71,10 @@ def test_ransomware_indicator_always_declines() -> None:
 
 def test_missing_backups_add_ten_without_an_observation_and_without_a_blocker() -> None:
     decision = decide([], AS_OF)
-    assert [(c.rule_id, c.points, c.observation_id) for c in decision.contributions] == [
-        ("BK-01", 10, None)
-    ]
+    assert [
+        (c.rule_id, c.points, c.observation_id, c.missing_evidence, c.reason)
+        for c in decision.contributions
+    ] == [("BK-01", 10, None, True, "No backups evidence received.")]
     assert decision.blockers == ()
     assert decision.outcome is Outcome.QUOTE
 

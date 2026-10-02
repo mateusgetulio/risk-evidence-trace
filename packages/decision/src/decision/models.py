@@ -33,6 +33,7 @@ class Contribution:
     points: int
     observation_id: int | None
     reason: str
+    missing_evidence: bool = False
 
 
 @dataclass(frozen=True)
