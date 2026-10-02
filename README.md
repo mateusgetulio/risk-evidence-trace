@@ -10,7 +10,7 @@ Then open http://localhost:3000 and press **Guided demo**.
 
 > The Docker path above is written but has not yet been run end to end on a clean machine. The tested path is the local one in [Running it](#running-it).
 
-Video walkthrough (3 minutes): link added after recording.
+Video walkthrough (3 minutes): https://www.loom.com/share/898ed30d82a446f7a1995b517f4f5c59
 
 ## What it does
 
