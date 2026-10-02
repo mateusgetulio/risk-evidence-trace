@@ -94,7 +94,7 @@ export function SubmissionPage({ id, step }: { id: number; step: number | null }
             transmission={submission.transmission}
             onSend={() => void sendToCarrier()}
             onDeliverScan={() => void deliverFixture("acme_late_scan")}
-            onReset={() => void resetDemo()}
+            onReset={step === null ? () => void resetDemo() : startGuide}
           />
         ) : null}
       </header>
